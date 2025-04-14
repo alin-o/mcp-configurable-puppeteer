@@ -109,12 +109,8 @@ const screenshots = new Map<string, string>();
 async function ensureBrowser() {
   if (!browser) {
     // Default arguments for different environments
-    const npx_args = { headless: false, ignoreHTTPSErrors: true,
-      args: [`--window-size=1920,1080`],
-      defaultViewport: {
-        width:1920,
-        height:1080
-      }};
+    const npx_args = { headless: false, ignoreHTTPSErrors: true, defaultViewport: null,
+      args: [`--window-size=1920,1080`]};
     const docker_args = { headless: true, args: ["--no-sandbox", "--single-process", "--no-zygote"] };
     
     // Get custom Puppeteer arguments from environment variables if available
