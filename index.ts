@@ -198,7 +198,6 @@ async function handleToolCall(name: string, args: any): Promise<CallToolResult> 
       if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
         targetUrl = `https://${targetUrl}`;
       }
-      consoleLogs.length = 0; // Clear console logs on new navigation
       try {
         await page.goto(targetUrl);
         return {
