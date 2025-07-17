@@ -199,14 +199,24 @@ async function handleToolCall(name: string, args: any): Promise<CallToolResult> 
         targetUrl = `https://${targetUrl}`;
       }
       consoleLogs.length = 0; // Clear console logs on new navigation
-      await page.goto(targetUrl);
-      return {
-        content: [{
-          type: "text",
-          text: `Navigated to ${targetUrl}`,
-        }],
-        isError: false,
-      };
+      try {
+        await page.goto(targetUrl);
+        return {
+          content: [{
+            type: "text",
+            text: `Navigated to ${targetUrl}`,
+          }],
+          isError: false,
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: "text",
+            text: `Failed to navigate to ${targetUrl}: ${(error as Error).message}`,
+          }],
+          isError: true,
+        };
+      }
 
     case "puppeteer_screenshot": {
       const width = args.width ?? 800;
