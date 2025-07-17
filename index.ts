@@ -189,11 +189,15 @@ async function handleToolCall(name: string, args: any): Promise<CallToolResult> 
 
   switch (name) {
     case "puppeteer_navigate":
-      await page.goto(args.url);
+      let targetUrl = args.url;
+      if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+        targetUrl = `https://${targetUrl}`;
+      }
+      await page.goto(targetUrl);
       return {
         content: [{
           type: "text",
-          text: `Navigated to ${args.url}`,
+          text: `Navigated to ${targetUrl}`,
         }],
         isError: false,
       };
