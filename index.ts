@@ -101,6 +101,11 @@ const TOOLS: Tool[] = [
       required: ["script"],
     },
   },
+  {
+    name: "puppeteer_get_console_logs",
+    description: "Retrieve the current browser console logs",
+    inputSchema: { type: "object", properties: {} },
+  },
 ];
 
 // Global state
@@ -383,6 +388,15 @@ async function handleToolCall(name: string, args: any): Promise<CallToolResult> 
           isError: true,
         };
       }
+
+    case "puppeteer_get_console_logs":
+      return {
+        content: [{
+          type: "text",
+          text: consoleLogs.join("\n"),
+        }],
+        isError: false,
+      };
 
     default:
       return {
