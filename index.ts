@@ -110,12 +110,15 @@ const consoleLogs: string[] = [];
 const screenshots = new Map<string, string>();
 
 async function ensureBrowser() {
-  if (!browser) {
+  // If browser is not initialized or is disconnected, (re)launch it
+  if (!browser || !browser.isConnected()) {
+    console.error("Browser is not connected or not initialized. Launching new browser instance.");
+    // Clear existing page reference to ensure a fresh one is created
+    page = undefined;
+
     // Default arguments for different environments
     const npx_args = {
-      headless: false,
-      ignoreHTTPSErrors: true,
-      defaultViewport: null,
+      headless: false, ignoreHTTPSErrors: true, defaultViewport: null,
       args: ["--window-size=1920,1080"]
     };
     const docker_args = { headless: true, args: ["--no-sandbox", "--single-process", "--no-zygote"] };
@@ -139,9 +142,27 @@ async function ensureBrowser() {
 
     console.error("Launching browser with arguments:", launchArgs);
     browser = await puppeteer.launch(launchArgs);
-    const pages = await browser.pages();
+
+    // Set up handler for browser disconnection to clean up references
+    browser.on('disconnected', () => {
+      console.error("Puppeteer browser disconnected.");
+      browser = undefined; // Mark browser as no longer available
+      page = undefined;    // Mark page as no longer available
+    });
+  }
+
+  // Ensure 'page' is always a valid, active page
+  if (!page || page.isClosed() || page.mainFrame().isDetached()) {
+    console.error("Page is closed or detached. Getting a new page from the browser.");
+    const pages = await browser!.pages(); // browser is guaranteed to be connected here
+    if (pages.length === 0) {
+      console.error("No pages found in the browser. Attempting to re-launch browser.");
+      browser = undefined; // Force a full browser re-launch next time
+      return ensureBrowser(); // Recursive call
+    }
     page = pages[0];
 
+    // Re-attach console listener to the new page
     page.on("console", (msg) => {
       const logEntry = `[${msg.type()}] ${msg.text()}`;
       consoleLogs.push(logEntry);
