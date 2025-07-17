@@ -17,8 +17,6 @@ import { z } from "zod";
 import * as fs from "fs/promises";
 import * as path from "path";
 
-console.error(JSON.stringify(process.env, null, 2));
-
 // Define the tools once to avoid repetition
 const TOOLS: Tool[] = [
   {
@@ -144,7 +142,13 @@ async function ensureBrowser() {
     // Merge the appropriate default args with custom args
     const launchArgs = {
       ...(process.env.DOCKER_CONTAINER ? docker_args : npx_args),
-      ...puppeteerArgs
+      ...puppeteerArgs,
+      env: {
+        ...process.env, // Inherit parent's environment
+        // Force DISPLAY, useful for running in containers or CI with an X-server.
+        // It will use the host's DISPLAY if set, otherwise default to a common value.
+        DISPLAY: process.env.DISPLAY || ':0',
+      },
     };
 
     console.error("Launching browser with arguments:", launchArgs);
@@ -197,10 +201,14 @@ async function handleToolCall(name: string, args: any): Promise<CallToolResult> 
   switch (name) {
     case "puppeteer_navigate":
       let targetUrl = args.url;
-      if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
-        targetUrl = `https://${targetUrl}`;
-      }
       try {
+        if(!targetUrl) {
+          throw new Error(`Missing required url argument`);
+        }
+        if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+          targetUrl = `https://${targetUrl}`;
+        }
+      
         await page.goto(targetUrl);
         return {
           content: [{
