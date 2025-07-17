@@ -13,6 +13,9 @@ import {
   Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import puppeteer, { Browser, Page } from "puppeteer";
+import { z } from "zod";
+import * as fs from "fs/promises";
+import * as path from "path";
 
 // Define the tools once to avoid repetition
 const TOOLS: Tool[] = [
@@ -109,10 +112,14 @@ const screenshots = new Map<string, string>();
 async function ensureBrowser() {
   if (!browser) {
     // Default arguments for different environments
-    const npx_args = { headless: false, ignoreHTTPSErrors: true, defaultViewport: null,
-      args: ["--window-size=1920,1080", "--no-sandbox"]};
-    const docker_args = { headless: true, args: ["--single-process", "--no-zygote"] };
-    
+    const npx_args = {
+      headless: false,
+      ignoreHTTPSErrors: true,
+      defaultViewport: null,
+      args: ["--window-size=1920,1080"]
+    };
+    const docker_args = { headless: true, args: ["--no-sandbox", "--single-process", "--no-zygote"] };
+
     // Get custom Puppeteer arguments from environment variables if available
     let puppeteerArgs = {};
     if (process.env.PUPPETEER_ARGS) {
@@ -123,13 +130,13 @@ async function ensureBrowser() {
         console.error("Error parsing PUPPETEER_ARGS:", error);
       }
     }
-    
+
     // Merge the appropriate default args with custom args
     const launchArgs = {
       ...(process.env.DOCKER_CONTAINER ? docker_args : npx_args),
       ...puppeteerArgs
     };
-    
+
     console.error("Launching browser with arguments:", launchArgs);
     browser = await puppeteer.launch(launchArgs);
     const pages = await browser.pages();
@@ -189,6 +196,21 @@ async function handleToolCall(name: string, args: any): Promise<CallToolResult> 
         };
       }
 
+      const screenshotBuffer = Buffer.from(screenshot as string, 'base64');
+      const savePath = process.env.SCREENSHOT_SAVE_PATH;
+
+      if (savePath) {
+        try {
+          await fs.mkdir(savePath, { recursive: true });
+          const filename = `${args.name}_${Date.now()}.png`;
+          const filePath = path.join(savePath, filename);
+          await fs.writeFile(filePath, screenshotBuffer);
+          console.error(`Screenshot saved to: ${filePath}`);
+        } catch (error) {
+          console.error(`Failed to save screenshot to file: ${(error as Error).message}`);
+        }
+      }
+
       screenshots.set(args.name, screenshot as string);
       server.notification({
         method: "notifications/resources/list_changed",
@@ -198,7 +220,7 @@ async function handleToolCall(name: string, args: any): Promise<CallToolResult> 
         content: [
           {
             type: "text",
-            text: `Screenshot '${args.name}' taken at ${width}x${height}`,
+            text: `Screenshot '${args.name}' taken at ${width}x${height}${savePath ? ` and saved to ${savePath}` : ''}`,
           } as TextContent,
           {
             type: "image",
@@ -306,15 +328,15 @@ async function handleToolCall(name: string, args: any): Promise<CallToolResult> 
               window.mcpHelper.logs.push(`[${method}] ${args.join(' ')}`);
               (window.mcpHelper.originalConsole as any)[method](...args);
             };
-          } );
-        } );
+          });
+        });
 
-        const result = await page.evaluate( args.script );
+        const result = await page.evaluate(args.script);
 
         const logs = await page.evaluate(() => {
           Object.assign(console, window.mcpHelper.originalConsole);
           const logs = window.mcpHelper.logs;
-          delete ( window as any).mcpHelper;
+          delete (window as any).mcpHelper;
           return logs;
         });
 
@@ -378,7 +400,7 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => ({
   ],
 }));
 
-server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+server.setRequestHandler(ReadResourceRequestSchema, async (request: z.infer<typeof ReadResourceRequestSchema>) => {
   const uri = request.params.uri.toString();
 
   if (uri === "console://logs") {
@@ -412,7 +434,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: TOOLS,
 }));
 
-server.setRequestHandler(CallToolRequestSchema, async (request) =>
+server.setRequestHandler(CallToolRequestSchema, async (request: z.infer<typeof CallToolRequestSchema>) =>
   handleToolCall(request.params.name, request.params.arguments ?? {})
 );
 
