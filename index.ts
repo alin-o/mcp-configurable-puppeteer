@@ -17,6 +17,8 @@ import { z } from "zod";
 import * as fs from "fs/promises";
 import * as path from "path";
 
+console.error(JSON.stringify(process.env, null, 2));
+
 // Define the tools once to avoid repetition
 const TOOLS: Tool[] = [
   {
