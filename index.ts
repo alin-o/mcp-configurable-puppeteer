@@ -17,6 +17,8 @@ import { z } from "zod";
 import * as fs from "fs/promises";
 import * as path from "path";
 
+console.error("Starting puppeteer custom server on display " + process.env.DISPLAY);
+
 // Define the tools once to avoid repetition
 const TOOLS: Tool[] = [
   {
@@ -498,6 +500,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request: z.infer<typeof C
 );
 
 async function runServer() {
+  console.error("Starting Puppeteer MCP Server");
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
