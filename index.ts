@@ -110,8 +110,8 @@ async function ensureBrowser() {
   if (!browser) {
     // Default arguments for different environments
     const npx_args = { headless: false, ignoreHTTPSErrors: true, defaultViewport: null,
-      args: [`--window-size=1920,1080`]};
-    const docker_args = { headless: true, args: ["--no-sandbox", "--single-process", "--no-zygote"] };
+      args: ["--window-size=1920,1080", "--no-sandbox"]};
+    const docker_args = { headless: true, args: ["--single-process", "--no-zygote"] };
     
     // Get custom Puppeteer arguments from environment variables if available
     let puppeteerArgs = {};
