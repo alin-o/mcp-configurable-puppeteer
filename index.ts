@@ -175,12 +175,47 @@ async function ensureBrowser() {
 
     // Re-attach console listener to the new page
     page.on("console", (msg) => {
-      const logEntry = `[${msg.type()}] ${msg.text()}`;
+      const logEntry = `[${msg.type()}] ${msg.text()} (Source: ${msg.location().url || 'N/A'}, Line: ${msg.location().lineNumber || 'N/A'})`;
       consoleLogs.push(logEntry);
-      server.notification({
-        method: "notifications/resources/updated",
-        params: { uri: "console://logs" },
-      });
+      try {
+        server.notification({
+          method: "notifications/resources/updated",
+          params: { uri: "console://logs" },
+        });
+      } catch (notificationError) {
+        console.error("Error sending console log notification:", notificationError);
+      }
+    });
+
+    page.on('requestfailed', (request) => {
+      const failure = request.failure();
+      if (failure) {
+        const logEntry = `[Network Error] ${request.method()} ${request.url()} - ${failure.errorText} (Status: ${request.response()?.status() || 'N/A'})`;
+        consoleLogs.push(logEntry);
+        try {
+          server.notification({
+            method: "notifications/resources/updated",
+            params: { uri: "console://logs" },
+          });
+        } catch (notificationError) {
+          console.error("Error sending network error notification:", notificationError);
+        }
+      }
+    });
+
+    page.on('response', async (response) => {
+      if (!response.ok()) {
+        const logEntry = `[HTTP Error] ${response.request().method()} ${response.url()} - Status: ${response.status()} ${response.statusText()}`; 
+        consoleLogs.push(logEntry);
+        try {
+          server.notification({
+            method: "notifications/resources/updated",
+            params: { uri: "console://logs" },
+          });
+        } catch (notificationError) {
+          console.error("Error sending HTTP error notification:", notificationError);
+        }
+      }
     });
   }
   return page!;
@@ -196,19 +231,20 @@ declare global {
 }
 
 async function handleToolCall(name: string, args: any): Promise<CallToolResult> {
-  const page = await ensureBrowser();
+  try {
+    const page = await ensureBrowser();
 
-  switch (name) {
+    switch (name) {
     case "puppeteer_navigate":
       let targetUrl = args.url;
       try {
-        if(!targetUrl) {
+        if (!targetUrl) {
           throw new Error(`Missing required url argument`);
         }
         if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
           targetUrl = `https://${targetUrl}`;
         }
-      
+        consoleLogs.length = 0; // Clear console logs on new navigation
         await page.goto(targetUrl);
         return {
           content: [{
@@ -427,6 +463,15 @@ async function handleToolCall(name: string, args: any): Promise<CallToolResult> 
         isError: true,
       };
   }
+} catch (error) {
+    return {
+      content: [{
+        type: "text",
+        text: `Tool execution failed for ${name}: ${(error as Error).message}`,
+      }],
+      isError: true,
+    };
+  }
 }
 
 const server = new Server(
@@ -507,4 +552,17 @@ runServer().catch(console.error);
 process.stdin.on("close", () => {
   console.error("Puppeteer MCP Server closed");
   server.close();
+});
+
+// Global unhandled error handlers
+process.on('uncaughtException', (err) => {
+  console.error('Unhandled Exception:', err);
+  // Optionally, perform graceful shutdown or notify about the error
+  // process.exit(1); // Exit with a failure code
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Optionally, perform graceful shutdown or notify about the error
+  // process.exit(1); // Exit with a failure code
 });
